@@ -15,21 +15,31 @@ import { join } from 'node:path';
 const BOT_DIR = process.env.MAKEFUN_BOT_DIR ?? '/bot';
 const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
-const src = join(BOT_DIR, 'POST.json');
-let post: unknown;
-try {
-  post = JSON.parse(readFileSync(src, 'utf8'));
-} catch (err) {
-  console.error(`Could not read ${src}: ${(err as Error).message}`);
-  process.exit(1);
+function readPostUrl(): string {
+  const src = join(BOT_DIR, 'POST.json');
+  let post: unknown;
+  try {
+    post = JSON.parse(readFileSync(src, 'utf8'));
+  } catch (err) {
+    console.error(`Could not read ${src}: ${(err as Error).message}`);
+    process.exit(1);
+  }
+  const raw = (post as { url?: unknown })?.url;
+  const url = typeof raw === 'string' ? raw.trim() : raw;
+  const match =
+    typeof url === 'string' ? /^https:\/\/x\.com\/([^/]+)\/status\/(\d+)$/.exec(url) : null;
+  if (!match) {
+    console.error(
+      `POST.json must name a real X post URL like https://x.com/<handle>/status/<id>, got: ${JSON.stringify(url)}`,
+    );
+    process.exit(1);
+  }
+  console.log(`Entry post by @${match[1]}, status ${match[2]}: ${url}`);
+  return url;
 }
 
-const url = (post as { url?: unknown })?.url;
-if (typeof url !== 'string' || !/^https:\/\/x\.com\/[^/]+\/status\/\d+$/.test(url)) {
-  console.error(`POST.json must name a real X post URL, got: ${JSON.stringify(url)}`);
-  process.exit(1);
-}
-
+const url = readPostUrl();
 mkdirSync(OUTPUT_DIR, { recursive: true });
-writeFileSync(join(OUTPUT_DIR, 'POST.json'), JSON.stringify({ url }) + '\n');
-console.log(`Entry post: ${url}`);
+const outPath = join(OUTPUT_DIR, 'POST.json');
+writeFileSync(outPath, JSON.stringify({ url }) + '\n');
+console.log(`Wrote entry address to ${outPath}`);
